@@ -19,6 +19,8 @@
 """
 
 import logging
+logger = logging.getLogger('ValueWidget')
+logger.setLevel(logging.DEBUG)
 
 # change the level back to logging.WARNING(the default) before releasing
 logging.basicConfig(level=logging.DEBUG)
@@ -71,12 +73,6 @@ if hasmpl:
 
 debug = 0
 
-#logger
-import logging
-# create logger
-logger = logging.getLogger('ValueWidget')
-logger.setLevel(logging.DEBUG)
-
 
 class ValueWidget(QWidget, Ui_Widget):
     def __init__(self, iface):
@@ -101,6 +97,12 @@ class ValueWidget(QWidget, Ui_Widget):
         self.legend = self.iface.legendInterface()
         self.logger = logging.getLogger('.'.join((__name__,
                                                   self.__class__.__name__)))
+
+
+        # defines the size of the neighborhood to work on
+        self.neighboroodSize = 1
+        # defines if we display the neighborhood (if we calculate it)
+        self.neighborood = False
 
         QWidget.__init__(self)
         self.setupUi(self)
@@ -217,6 +219,9 @@ class ValueWidget(QWidget, Ui_Widget):
             QObject.connect(self.canvas, SIGNAL("layersChanged ()"), self.invalidatePlot)
             if not self.cbxClick.isChecked():
                 QObject.connect(self.canvas, SIGNAL("xyCoordinates(const QgsPoint &)"), self.printValue)
+                #connection computing neighborhood
+                QObject.connect(self.cbxVoisinage, SIGNAL("stateChanged(int)"), self.changeNeighborActive)
+                QObject.connect(self.spinBoxVoisinage, SIGNAL("valueChanged(int)"), self.defNeighborood)
         else:
             self.cbxEnable.setCheckState(Qt.Unchecked)
             QObject.disconnect(self.canvas, SIGNAL("layersChanged ()"), self.invalidatePlot)
@@ -233,6 +238,20 @@ class ValueWidget(QWidget, Ui_Widget):
                 # use this to clear plot when deactivated
                 # self.values=[]
                 # self.showValues()
+
+    def changeNeighborActive(self, state):
+        """
+        Updates self.neighborood according to the user choice.
+        Allows or not to run the calculation of the average
+
+        Keyword arguments:
+            state -- state of the checkbox
+
+        """
+        if (state == Qt.Checked):
+            self.neighborood = True
+        else:
+            self.neighborood = False
 
     def activeRasterLayers(self, index=None):
         layers = []
@@ -274,6 +293,9 @@ class ValueWidget(QWidget, Ui_Widget):
         return activeBands
 
     def printValue(self, position):
+        # coordinate pixel/line to display
+        coordx = "0"
+        coordy = "0"
 
         if debug > 0:
             print(position)
@@ -379,16 +401,22 @@ class ValueWidget(QWidget, Ui_Widget):
                     if not layer.dataProvider().extent().contains(pos):
                         ident = dict()
                         for iband in range(1, layer.bandCount() + 1):
-                            ident[iband] = str(self.tr('out of extent'))
+                            ident[iband] = str(self.tr('out of extent5555555555555'))
                     # we can only use context if layer is not projected
                     elif canvas.hasCrsTransformEnabled() and layer.dataProvider().crs() != canvas.mapRenderer().destinationCrs():
                         ident = layer.dataProvider().identify(pos, QgsRaster.IdentifyFormatValue).results()
+                        # if computing of neighborhood is checked
+                        if self.neighborood:
+                            identNeighborhood = self.calculateNeighborood(pos, layer)
                     else:
                         extent = canvas.extent()
                         width = round(extent.width() / canvas.mapUnitsPerPixel());
                         height = round(extent.height() / canvas.mapUnitsPerPixel());
 
                         extent = canvas.mapRenderer().mapToLayerCoordinates(layer, extent);
+                        # if computing of neighborhood is checked
+                        if self.neighborood:
+                            identNeighborhood = self.calculateNeighborood(pos, layer, canvas.extent(), width, height)
 
                         ident = layer.dataProvider().identify(pos, QgsRaster.IdentifyFormatValue, canvas.extent(),
                                                               width, height).results()
@@ -403,7 +431,14 @@ class ValueWidget(QWidget, Ui_Widget):
                 # bands displayed depends on cbxBands (all / active / selected)
                 activeBands = self.activeBandsForRaster(layer)
 
-                for iband in activeBands:  # loop over the active bands
+
+                # get the pixel line of the current position
+                coordx, coordy = self.calculatePixelLine( layer, pos )
+                # self.printLatlongInStatusBar()
+
+
+                for indexBand, iband in enumerate(activeBands):  # loop over the active bands
+                    average = "#"
                     layernamewithband = layername
                     if ident is not None and len(ident) > 1:
                         layernamewithband += ' ' + layer.bandName(iband)
@@ -415,7 +450,12 @@ class ValueWidget(QWidget, Ui_Widget):
                         if bandvalue is None:
                             bandvalue = "no data"
 
-                    self.values.append((layernamewithband, str(bandvalue)))
+                    # if we need to display neighborhood
+                    if self.neighborood:
+                       average = QgsRasterBlock.printValue( identNeighborhood[indexBand-1] )
+
+                    # add the pixel line to the end of "values "
+                    self.values.append( (layernamewithband, str(bandvalue), coordx, coordy, average) )
 
                     if needextremum:
                         # estimated statistics
@@ -498,9 +538,11 @@ class ValueWidget(QWidget, Ui_Widget):
         # set table widget row count
         self.tableWidget.setRowCount(len(self.values))
 
+        # current line
         irow = 0
         for row in self.values:
-            layername, value = row
+            layername, value, x, y, average = row
+            average = str( average )
 
             # limit number of decimal places if requested
             if self.cbxDigits.isChecked():
@@ -513,9 +555,17 @@ class ValueWidget(QWidget, Ui_Widget):
                 # create the item
                 self.tableWidget.setItem(irow, 0, QTableWidgetItem())
                 self.tableWidget.setItem(irow, 1, QTableWidgetItem())
+                self.tableWidget.setItem(irow, 2, QTableWidgetItem())
+                self.tableWidget.setItem(irow, 3, QTableWidgetItem())
+                #if self.neighborood :
+                self.tableWidget.setItem(irow, 4, QTableWidgetItem())
 
             self.tableWidget.item(irow, 0).setText(layername)
             self.tableWidget.item(irow, 1).setText(value)
+            self.tableWidget.item(irow, 2).setText( str( x ) )
+            self.tableWidget.item(irow, 3).setText( str( y ) )
+            if self.neighborood :
+                self.tableWidget.item(irow, 4).setText(average)
             irow += 1
 
     def plot(self):
@@ -773,3 +823,194 @@ class ValueWidget(QWidget, Ui_Widget):
     def toolPressed(self, position):
         if self.shouldPrintValues() and self.cbxClick.isChecked():
             self.printValue(self.canvas.getCoordinateTransform().toMapCoordinates(position))
+
+    def defNeighborood(self, size):
+        """
+        Updates self.neighboroodSize
+            
+        Keyword arguments:
+            size -- size entered by the user
+
+        """
+        self.neighboroodSize = size
+        logger.debug(self.neighboroodSize)
+
+    def calculatePixelLine(self, layer, pos):
+        """
+        Computes the pixel line of the mouse position
+
+        Keyword arguments:
+            layer  -- The current layer the caller function is working on
+            pos    -- The position in a given coordinate system
+
+        Returns : nothing
+        """
+
+        self.posx = pos.x()
+        self.posy = pos.y()
+        self.posQgsPoint = pos
+
+        # using GDAL
+        try:
+            dataset = gdal.Open(str(layer.source()), gdalconst.GA_ReadOnly)
+        except RuntimeError:
+            message = "Failed to open " + layer.source() + ". You may have to many data opened in QGIS."
+            logger.error(message)
+        else:
+            spatialReference = osr.SpatialReference()
+            spatialReference.ImportFromWkt(dataset.GetProjectionRef())
+
+            # if the layer is not georeferenced
+            if len(str(spatialReference)) == 0:
+                # never go in this loop because qgis always georeference a file at opening
+                coordx = pos.x()
+                coordy = pos.y()
+            else:
+                # getting the extent and the spacing
+                geotransform = dataset.GetGeoTransform()
+                if not geotransform is None:
+                    origineX = geotransform[0]
+                    origineY = geotransform[3]
+                    spacingX = geotransform[1]
+                    spacingY = geotransform[5]
+
+                    coordx = (pos.x() - origineX) / spacingX
+                    coordy = (pos.y() - origineY) / spacingY
+                    if coordy < 0:
+                        coordy = - coordy
+
+            if not layer.dataProvider().extent().contains(pos):
+                #        if coordx < 0 or coordx > layer.width() or coordy < 0 or coordy > layer.height() :
+                coordx = "Out of image"
+                coordy = "Out of image"
+            else:
+                #            coordx = QgsRasterBlock.printValue( coordx )#QString(pos.x())
+                coordx = str(int(coordx))  # QString(pos.x())
+                #            coordy = QgsRasterBlock.printValue( coordy )#QString(pos.y())
+                coordy = str(int(coordy))  # QString(pos.y())
+            return coordx, coordy
+
+    def changeNeighborActive(self, state):
+        """
+        Updates self.neighborood according to the user choice.
+        Allows or not to run the calculation of the average
+
+        Keyword arguments:
+            state -- state of the checkbox
+
+        """
+        if (state == Qt.Checked):
+            self.neighborood = True
+        else:
+            self.neighborood = False
+
+    def defNeighborood(self, size):
+        """
+        Updates self.neighboroodSize
+
+        Keyword arguments:
+            size -- size entered by the user
+
+        """
+        self.neighboroodSize = size
+        logger.debug(self.neighboroodSize)
+
+    def calculateNeighborood(self, pos, layer, extent=None, width=0, height=0):
+        """
+        Computes the average in a given neighborhood of the mouse position
+
+        Keyword arguments:
+            pos    -- The position in a given coordinate system
+            layer  -- The current layer the caller function is working on
+            extent -- Current extent (default None)
+            witdh  -- Computed width with pixel size (default 0)
+            height -- Computed height with pixel size (default 0)
+
+        Returns : nothing
+        """
+        logger.info("calculate neighborood")
+        # Values of the neighborhood for all layers
+
+        identNeighborhood = []
+        for iband in range(0, layer.bandCount()):
+            identNeighborhood.append(0)
+
+        #        logger.debug( identNeighborhood )
+
+        nbElement = 0
+
+        for i in range(0 - self.neighboroodSize, self.neighboroodSize):
+            for j in range(0 - self.neighboroodSize, self.neighboroodSize):
+                # going throw neighbors
+
+                #                logger.debug( "pos x : " + str( pos.x() ) + ", pos y : " + str( pos.y() ) )
+
+                point = QgsPoint(pos.x() + i, pos.y() + j)
+
+                #                logger.debug( "pixel : i :" + str( i ) + " j : " + str( j ) )
+
+                #                logger.debug( "point x : " + str( point.x() ) + ", point y : " + str( point.y() ) )
+
+                if extent == None:
+                    ident = layer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue).results()
+                else:
+                    ident = layer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue, extent,
+                                                          width, height).results()
+                nbElement += 1
+
+                '''
+                elif canvas.hasCrsTransformEnabled() and layer.dataProvider().crs() != canvas.mapRenderer().destinationCrs():
+                    ident = layer.dataProvider().identify(pos, QgsRaster.IdentifyFormatValue).results()
+                    # if computing of neighborhood is checked
+                    if self.neighborood:
+                        identNeighborhood = self.calculateNeighborood(pos, layer)
+                else:
+                    extent = canvas.extent()
+                    width = round(extent.width() / canvas.mapUnitsPerPixel());
+                    height = round(extent.height() / canvas.mapUnitsPerPixel());
+
+                    extent = canvas.mapRenderer().mapToLayerCoordinates(layer, extent);
+                    # if computing of neighborhood is checked
+                    if self.neighborood:
+                        identNeighborhood = self.calculateNeighborood(pos, layer, canvas.extent(), width, height)
+
+                    ident = layer.dataProvider().identify(pos, QgsRaster.IdentifyFormatValue, canvas.extent(),
+                                                          width, height).results()
+                '''
+
+
+
+
+                # add for each band the value of ident in identneighborhood
+                for key in ident.iterkeys():
+                    #                    logger.debug( "index in dictionary : " + str( key ) )
+                    if ident is not None and len(ident) > 1:
+                        #                        logger.debug( "dictionary is not empty" )
+                        pass
+                    if not ident or not ident.has_key(key):  # should not happen
+                        #                        logger.debug( "dictionary is empty or had a missing key" )
+                        pass
+                    else:
+                        # test if value is str (out of extent)
+                        # this is kind of contrived, but trying to minimize changes
+                        if isinstance(ident[key], str):
+                            #                            logger.debug( "value is a string" )
+                            bandvalue = ident[key]
+                            identNeighborhood[key - 1] += bandvalue
+                        else:
+                            doubleValue = float(ident[key])
+                            # TODO
+                            # if not layer.dataProvider().isNoDataValue(key, doubleValue):
+                                #                                logger.debug( "value en i, j : " + str( doubleValue ) )
+                                # add doublevalue to identvoisin
+                            identNeighborhood[key - 1] += doubleValue
+                            #                                logger.debug( "added value : " + str( identNeighborhood[key-1] ) )
+
+        # averaging each band of identneighborhood
+        for iband in range(0, layer.bandCount()):  # loop over the bands
+            identNeighborhood[iband] /= nbElement
+
+        #        stringLabel = QString( "Average of pixel (" + str( pos.x() ) + ", " + str( pos.y() )
+        #                               + ") on the neighborhood of " + str( self.neighboroodSize ) + " is : " +  str( identNeighborhood ) )
+
+        return identNeighborhood
