@@ -24,9 +24,29 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
+
+# Import the PyQt and QGIS libraries
+from PyQt4.QtCore import Qt, QObject, SIGNAL, QSize, QSettings
+from PyQt4.QtGui import QApplication, QWidget, QTableWidgetItem, QBrush, QPen, QToolButton, QActionGroup, QMenu, QAction
+
+# import GDAL and QGIS libraries
+from qgis.core import (QGis,
+                       QgsMapLayerRegistry,
+                       QgsApplication,
+                       QgsPoint,
+                       QgsRasterBlock,
+                       QgsRaster,
+                       QgsMapLayer,
+                       QgsRasterDataProvider,
+                       QgsCoordinateReferenceSystem,
+                       QgsCoordinateTransform,
+                       QgsRectangle,
+                       QgsCsException,
+                       QgsRasterBandStats
+                       )
+
+from osgeo import osr, gdal
+import gdalconst
 
 from ui_valuewidgetbase import Ui_ValueWidgetBase as Ui_Widget
 
@@ -50,6 +70,12 @@ if hasmpl:
         hasmpl = False
 
 debug = 0
+
+#logger
+import logging
+# create logger
+logger = logging.getLogger('ValueWidget')
+logger.setLevel(logging.DEBUG)
 
 
 class ValueWidget(QWidget, Ui_Widget):
@@ -442,8 +468,14 @@ class ValueWidget(QWidget, Ui_Widget):
         if save_state:
             self.changeActive(True, False)  # activate if necessary
 
-    # get cached statistics for layer and band or None if not calculated
     def getStats(self, layer, bandNo, force=False):
+        """
+        Get cached statistics for layer and band or None if not calculated
+        :param layer:
+        :param bandNo:
+        :param force:
+        :return:
+        """
         if self.stats.has_key(layer):
             if self.stats[layer].has_key(bandNo):
                 return self.stats[layer][bandNo]
@@ -460,7 +492,9 @@ class ValueWidget(QWidget, Ui_Widget):
         return None
 
     def printInTable(self):
-
+        """
+        print self.values in the table
+        """
         # set table widget row count
         self.tableWidget.setRowCount(len(self.values))
 
@@ -571,8 +605,11 @@ class ValueWidget(QWidget, Ui_Widget):
         if self.tabWidget.currentIndex() == 2:
             self.updateLayers()
 
-    # update active layers in table
     def updateLayers(self):
+        """
+        update active layers in table
+        :return:
+        """
         if self.tabWidget.currentIndex() != 2:
             return
 
@@ -642,8 +679,13 @@ class ValueWidget(QWidget, Ui_Widget):
 
         self.tableWidget2.blockSignals(False)
 
-    # slot for when active layer selection has changed
     def layerSelected(self, row, column):
+        """
+        slot for when active layer selection has changed
+        :param row:
+        :param column:
+        :return:
+        """
         if column != 0:
             return
 
@@ -656,8 +698,12 @@ class ValueWidget(QWidget, Ui_Widget):
             elif layerID in self.layersSelected:
                 self.layersSelected.remove(layerID)
 
-    # slot for when active band selection has changed
     def bandSelected(self, action):
+        """
+        slot for when active band selection has changed
+        :param action:
+        :return:
+        """
         layerID = action.data()[0]
         layerBand = action.data()[1]
         j = action.data()[2]
@@ -699,8 +745,14 @@ class ValueWidget(QWidget, Ui_Widget):
         item.setToolTip(str(activeBands))
         self.tableWidget2.setItem(j, 3, item)
 
-    # event filter for band selection menu, do not close after toggling each band
     def eventFilter(self, obj, event):
+        """
+        event filter for band selection menu, do not close after toggling each band
+
+        :param obj:
+        :param event:
+        :return:
+        """
         if event.type() in [QtCore.QEvent.MouseButtonRelease]:
             if isinstance(obj, QtGui.QMenu):
                 if obj.activeAction():

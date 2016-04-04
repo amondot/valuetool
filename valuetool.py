@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 /***************************************************************************
          Value Tool       - A QGIS plugin to get values at the mouse pointer
@@ -18,9 +19,9 @@
  This script initializes the plugin, making it known to QGIS.
 """
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
+from PyQt4.QtCore import SIGNAL, QObject, Qt, QSettings
+from PyQt4.QtGui import QAction, QIcon, QDockWidget
+# from qgis.core import *
 
 from valuewidget import ValueWidget
 from valuemaptool import ValueMapTool
