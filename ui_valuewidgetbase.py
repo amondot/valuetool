@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'ui_valuewidgetbase.ui'
 #
-# Created: Mon Apr  4 17:19:08 2016
+# Created: Mon Apr  4 17:48:35 2016
 #      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -68,6 +68,7 @@ class Ui_ValueWidgetBase(object):
         self.cbxVoisinage.setObjectName(_fromUtf8("cbxVoisinage"))
         self.horizontalLayout_4.addWidget(self.cbxVoisinage)
         self.spinBoxVoisinage = QtGui.QSpinBox(self.widget)
+        self.spinBoxVoisinage.setMinimum(1)
         self.spinBoxVoisinage.setObjectName(_fromUtf8("spinBoxVoisinage"))
         self.horizontalLayout_4.addWidget(self.spinBoxVoisinage)
         spacerItem1 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)

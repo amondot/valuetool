@@ -93,7 +93,11 @@
              </widget>
             </item>
             <item>
-             <widget class="QSpinBox" name="spinBoxVoisinage"/>
+             <widget class="QSpinBox" name="spinBoxVoisinage">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+             </widget>
             </item>
             <item>
              <spacer name="horizontalSpacer_5">
