@@ -393,6 +393,7 @@ class ValueWidget(QWidget, Ui_Widget):
                     continue
 
                 ident = None
+                identNeighborhood = None
                 if position is not None:
                     canvas = self.iface.mapCanvas()
 
@@ -401,7 +402,7 @@ class ValueWidget(QWidget, Ui_Widget):
                     if not layer.dataProvider().extent().contains(pos):
                         ident = dict()
                         for iband in range(1, layer.bandCount() + 1):
-                            ident[iband] = str(self.tr('out of extent5555555555555'))
+                            ident[iband] = str(self.tr('out of extent'))
                     # we can only use context if layer is not projected
                     elif canvas.hasCrsTransformEnabled() and layer.dataProvider().crs() != canvas.mapRenderer().destinationCrs():
                         ident = layer.dataProvider().identify(pos, QgsRaster.IdentifyFormatValue).results()
@@ -451,8 +452,8 @@ class ValueWidget(QWidget, Ui_Widget):
                             bandvalue = "no data"
 
                     # if we need to display neighborhood
-                    if self.neighborood:
-                       average = QgsRasterBlock.printValue( identNeighborhood[indexBand-1] )
+                    if self.neighborood and identNeighborhood is not None:
+                        average = QgsRasterBlock.printValue( identNeighborhood[indexBand-1] )
 
                     # add the pixel line to the end of "values "
                     self.values.append( (layernamewithband, str(bandvalue), coordx, coordy, average) )
@@ -928,7 +929,7 @@ class ValueWidget(QWidget, Ui_Widget):
 
         Returns : nothing
         """
-        logger.info("calculate neighborood")
+        logger.debug("calculate neighborood")
         # Values of the neighborhood for all layers
 
         identNeighborhood = []
@@ -991,13 +992,17 @@ class ValueWidget(QWidget, Ui_Widget):
                         #                        logger.debug( "dictionary is empty or had a missing key" )
                         pass
                     else:
+                        if not ident[key]:
+                            bandvalue="#"
                         # test if value is str (out of extent)
                         # this is kind of contrived, but trying to minimize changes
-                        if isinstance(ident[key], str):
+                        elif isinstance(ident[key], str):
                             #                            logger.debug( "value is a string" )
                             bandvalue = ident[key]
                             identNeighborhood[key - 1] += bandvalue
+                            logger.debug("identNeighborhood {}, key: {}".format(identNeighborhood[key - 1], key))
                         else:
+                            logger.debug("ident[key] {}".format(ident[key]))
                             doubleValue = float(ident[key])
                             # TODO
                             # if not layer.dataProvider().isNoDataValue(key, doubleValue):
