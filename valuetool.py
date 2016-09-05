@@ -5,7 +5,11 @@
                              -------------------
     begin                : 2008-08-26
     copyright            : (C) 2008 by G. Picard
-    email                : 
+                           (C) 2016 by CS Systemes d'information (CS SI)
+    contributors         : G. Picard
+                           A. Mondot
+    email                :
+                           alexia.mondot@c-s.fr
  ***************************************************************************/
 
 /***************************************************************************
