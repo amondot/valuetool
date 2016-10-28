@@ -580,7 +580,7 @@ class ValueWidget(QWidget, Ui_Widget):
 
         if (self.hasqwt or self.hasmpl):
             for row in self.values:
-                layername, value = row
+                layername, value, x, y, average = row
                 bandsUsed.append(int(layername.split(' ')[-1]))
                 try:
                     numvalues.append(float(value))
